@@ -2,7 +2,7 @@ import os
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from PIL import Image
 import numpy as np
 import pandas as pd
@@ -10,7 +10,7 @@ import pandas as pd
 
 class WBDataset(Dataset):
     
-    # Waterbird dataset (already cropped and centered).
+    # Custom dataset class for waterbird data
     
     def __init__(
         self,
@@ -72,7 +72,18 @@ class WBDataset(Dataset):
         elif self.split_array[idx] in [self.split_dict["val"], self.split_dict["test"]]:
             img = self.eval_transform(img)
 
-        return img, label, group
+        return img, label, group, idx
+
+
+    def split(self):
+
+        # Splits the dataset into train, val and test data acc. to split_array
+
+        train_indices = [i for i, x in enumerate(self.split_array) if x == self.split_dict["train"]]
+        val_indices = [i for i, x in enumerate(self.split_array) if x == self.split_dict["val"]]
+        test_indices = [i for i, x in enumerate(self.split_array) if x == self.split_dict["test"]]
+
+        return [Subset(self,indices) for indices in [train_indices,val_indices,test_indices]]
             
     
 
