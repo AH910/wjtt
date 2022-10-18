@@ -1,14 +1,14 @@
+import numpy as np
 import torch
 import torchvision.models as models
-import wandb
 from torch.utils.data import DataLoader
 
+import wandb
 from utils import hinge_loss
 from waterbird_prep import WBDataset
 
 # Login to wandb
-wandb.login()
-wandb.init()
+wandb.init(project="test_run")
 
 # Set seed
 torch.manual_seed(0)
@@ -47,12 +47,18 @@ optimizer = torch.optim.SGD(
     weight_decay=weight_decay,
 )
 
-# Put model in training mode
-model.train()
-
 # Run training
+
 for epoch in range(n_epochs):
+    # Training
+    train_loss = 0.0
+    train_correct_pred = 0.0
+
     for batch_idx, batch in enumerate(train_dataloader):
+
+        # Put model in training mode
+        model.train()
+
         batch = tuple(t.to(device) for t in batch)
         x = batch[0]
         y = batch[1]
@@ -68,6 +74,43 @@ for epoch in range(n_epochs):
         loss.backward()
         optimizer.step()
 
-        if batch_idx == 0:
-            print(f"epoch {epoch+1} / {n_epochs} :::::::: loss = {loss.item():.3f}")
-            wandb.log({"loss": loss.item()}, step=epoch)
+        # Add loss of this batch to total and add correctly predicted samples to total
+        train_loss += loss.item()
+        y_pred = np.argmax(outputs.detach().cpu().numpy(), axis=1)
+        y_true = y.cpu().numpy()
+        train_correct_pred += np.sum(y_pred == y_true)
+
+    # Validation
+    val_loss = 0.0
+    val_correct_pred = 0.0
+
+    for batch_idx, batch in enumerate(val_dataloader):
+        # Put model in evaluation mode
+        model.eval()
+
+        batch = tuple(t.to(device) for t in batch)
+        x = batch[0]
+        y = batch[1]
+        g = batch[2]
+        data_idx = batch[3]
+
+        # Forward pass
+        outputs = model(x)
+        loss = criterion(outputs, y)
+
+        # Add loss of this batch to total and add correctly predicted samples to total
+        val_loss += loss.item()
+        y_pred = np.argmax(outputs.detach().cpu().numpy(), axis=1)
+        y_true = y.cpu().numpy()
+        val_correct_pred += np.sum(y_pred == y_true)
+
+    # Logging loss and accuracy to wandb
+    wandb.log(
+        {
+            "training loss": train_loss / len(train_dataloader),
+            "training accuracy": train_correct_pred / len(train_dataloader.dataset),
+            "validation loss": val_loss / len(val_dataloader),
+            "validation accuracy": val_correct_pred / len(val_dataloader.dataset),
+        },
+        step=epoch + 1,
+    )
