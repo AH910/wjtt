@@ -17,7 +17,7 @@ torch.manual_seed(0)
 device = torch.device("cuda")
 
 # Hyperparameters
-n_epochs = 50
+n_epochs = [30, 50, 70]
 batch_size = 64
 lr = 1e-3
 weight_decay = 1.0
@@ -49,7 +49,7 @@ optimizer = torch.optim.SGD(
 
 # Run training
 
-for epoch in range(n_epochs):
+for epoch in range(max(n_epochs)):
     # Training
     train_loss = 0.0
     train_correct_pred = 0.0
@@ -114,3 +114,13 @@ for epoch in range(n_epochs):
         },
         step=epoch + 1,
     )
+
+    if epoch + 1 in n_epochs:
+        torch.save(
+            model.state_dict(),
+            "./models/jtt/first_models/resnet50_"
+            + f"nepochs_{epoch+1}_"
+            + f"lr_{lr}_"
+            + f"batch_size_{batch_size}_"
+            + f"wd_{weight_decay}",
+        )
