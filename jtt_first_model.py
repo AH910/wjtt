@@ -17,9 +17,9 @@ torch.manual_seed(0)
 device = torch.device("cuda")
 
 # Hyperparameters
-n_epochs = 1
+n_epochs = 50
 batch_size = 64
-lr = 1e-5
+lr = 1e-3
 weight_decay = 1.0
 model = models.resnet50()
 
