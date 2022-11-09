@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.models as models
@@ -8,6 +9,7 @@ from training import train_model
 from waterbird_prep import WBDataset
 
 # Set seed
+np.random.seed(0)
 torch.manual_seed(0)
 
 # Device configuration
@@ -32,7 +34,7 @@ wandb.init(
 )
 
 # Initialize model
-model = models.resnet50()
+model = models.resnet50(pretrained=True)
 d = model.fc.in_features
 model.fc = nn.Linear(d, n_classes)
 model = model.to(device)
@@ -57,6 +59,7 @@ train_dataloader = DataLoader(train_data, shuffle=True, **loader_kwargs)
 val_dataloader = DataLoader(val_data, **loader_kwargs)
 test_dataloader = DataLoader(test_data, **loader_kwargs)
 
+
 # Loss and optimizer
 criterion = nn.CrossEntropyLoss(reduction="none")
 optimizer = torch.optim.SGD(
@@ -72,6 +75,7 @@ train_model(
     n_epochs,
     train_dataloader,
     val_dataloader,
+    test_dataloader,
     criterion,
     optimizer,
     lr,
