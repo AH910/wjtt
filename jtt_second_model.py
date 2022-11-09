@@ -1,27 +1,45 @@
 import numpy as np
 import torch
+import torch.nn as nn
+import torchvision.models as models
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 
 import wandb
+from training import train_model
 from waterbird_prep import WBDataset
 
+n_classes = 2
+
 # Hyperparameters first model
-n_epochs_1 = 50
+n_epochs_1 = 60
 batch_size_1 = 64
-lr_1 = 1e-3
+lr_1 = 1e-5
 weight_decay_1 = 1.0
 
 # Hyperparameters second model
-n_epochs_2 = 100
+n_epochs_2 = [100]
 batch_size_2 = 64
-lr_2 = 1e-3
+lr_2 = 1e-5
 weight_decay_2 = 1.0
-upweight = 20
+upweight = 100
 
 # Login to wandb
-wandb.init(project="JTT (2nd model)")
+wandb.init(
+    project="JTT (2nd model)",
+    config={
+        "Number of epochs 1st model": n_epochs_1,
+        "Batch size 1st model": batch_size_1,
+        "Learning rate 1st model": lr_1,
+        "Weight decay 1st model": weight_decay_1,
+        "Number of epochs 2nd model": n_epochs_2,
+        "Batch size 2nd model": batch_size_2,
+        "Learning rate 2nd model": lr_2,
+        "Weight decay 2nd model": weight_decay_2,
+    },
+)
 
 # Set seed
+np.random.seed(0)
 torch.manual_seed(0)
 
 # Device configuration
@@ -37,23 +55,59 @@ full_dataset = WBDataset(
 train_data, val_data, test_data = full_dataset.split()
 
 # Load error set from first model
-error_set = np.genfromtxt(
-    "./results/jtt/waterbird/error_sets/"
-    + f"nepochs_{n_epochs_1}_"
-    + f"lr_{lr_1}_"
-    + f"batch_size_{batch_size_1}_"
-    + f"wd_{weight_decay_1}.csv",
-    delimiter=",",
+error_set = list(
+    np.genfromtxt(
+        "./results/jtt/waterbird/error_sets/"
+        + f"nepochs_{n_epochs_1}_"
+        + f"lr_{lr_1}_"
+        + f"batch_size_{batch_size_1}_"
+        + f"wd_{weight_decay_1}.csv",
+        delimiter=",",
+    )
 )
+error_set = [int(x) for x in error_set]
 
 # Add the samples, that were incorrectly classified by the 1st model, (upweight-1) times
 # to the training data, so that every sample that was correctly classified is in the
 # training data once and every sample in the error set is in the training data
 # (upweight) times
-upweighted_samples = Subset(full_dataset, list(error_set) * (upweight - 1))
+upweighted_samples = Subset(full_dataset, list(error_set) * upweight)
 train_data = ConcatDataset([train_data, upweighted_samples])
 
-# Split dataset and define dataloaders and sampler for trainloader
-train_dataloader = DataLoader(train_data, batch_size=batch_size_2)
-val_dataloader = DataLoader(val_data, batch_size=batch_size_2)
-test_dataloader = DataLoader(test_data, batch_size=batch_size_2)
+# Dataloaders
+loader_kwargs = {
+    "batch_size": batch_size_2,
+    "num_workers": 4,
+    "pin_memory": True,
+}
+train_dataloader = DataLoader(train_data, **loader_kwargs)
+val_dataloader = DataLoader(val_data, **loader_kwargs)
+test_dataloader = DataLoader(test_data, **loader_kwargs)
+
+# Initialize model
+model = models.resnet50(pretrained=True)
+d = model.fc.in_features
+model.fc = nn.Linear(d, n_classes)
+model = model.to(device)
+
+# Loss and optimizer
+criterion = nn.CrossEntropyLoss(reduction="none")
+optimizer = torch.optim.SGD(
+    filter(lambda p: p.requires_grad, model.parameters()),
+    lr=lr_2,
+    momentum=0.9,
+    weight_decay=weight_decay_2,
+)
+
+train_model(
+    model,
+    n_epochs_2,
+    train_dataloader,
+    val_dataloader,
+    test_dataloader,
+    criterion,
+    optimizer,
+    lr_2,
+    batch_size_2,
+    weight_decay_2,
+)
