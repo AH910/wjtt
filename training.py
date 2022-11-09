@@ -7,7 +7,7 @@ import wandb
 device = torch.device("cuda")
 
 
-def eval_model(model, dataloader, criterion):
+def eval_model(model, dataloader, criterion, wandb_group):
     """
     Evaluates the model. Returns dictionary with group accuracies, worst group accuracy,
     average (over batches) accuracy and total loss of the samples in the dataloader.
@@ -45,15 +45,19 @@ def eval_model(model, dataloader, criterion):
                 g_correct_pred[g[k]] += 1
 
     stats = {
-        "Val: Group 0 acc. (LB on land)": g_correct_pred[0] / g_total[0],
-        "Val: Group 1 acc. (LB on water)": g_correct_pred[1] / g_total[1],
-        "Val: Group 2 acc. (WB on land)": g_correct_pred[2] / g_total[2],
-        "Val: Group 3 acc. (WB on water)": g_correct_pred[3] / g_total[3],
-        "Val: Worst group acc.": min(
-            g_correct_pred[i] / g_total[i] for i in [0, 1, 2, 3]
-        ),
-        "validation accuracy": total_correct_pred / len(dataloader.dataset),
-        "validation loss": total_loss,
+        wandb_group + "/" + "Group 0 acc. (LB on land)": g_correct_pred[0] / g_total[0],
+        wandb_group
+        + "/"
+        + "Group 1 acc. (LB on water)": g_correct_pred[1] / g_total[1],
+        wandb_group + "/" + "Group 2 acc. (WB on land)": g_correct_pred[2] / g_total[2],
+        wandb_group
+        + "/"
+        + "Group 3 acc. (WB on water)": g_correct_pred[3] / g_total[3],
+        wandb_group
+        + "/"
+        + "Worst group acc.": min(g_correct_pred[i] / g_total[i] for i in [0, 1, 2, 3]),
+        wandb_group + "/" + "accuracy": total_correct_pred / len(dataloader.dataset),
+        wandb_group + "/" + "loss": total_loss,
     }
 
     return stats
@@ -100,6 +104,7 @@ def train_model(
     n_epochs,
     train_dataloader,
     val_dataloader,
+    test_dataloader,
     criterion,
     optimizer,
     lr,
@@ -145,9 +150,13 @@ def train_model(
             train_correct_pred += np.sum(y_pred == y_true)
 
         # Logging loss and accuracy to wandb
-        stats = eval_model(model, val_dataloader, criterion)
-        stats["training loss"] = train_loss / len(train_dataloader)
-        stats["training accuracy"] = train_correct_pred / len(train_dataloader.dataset)
+        train_stats = {
+            "train/loss": train_loss / len(train_dataloader),
+            "train/accuracy": train_correct_pred / len(train_dataloader.dataset),
+        }
+        val_stats = eval_model(model, val_dataloader, criterion, wandb_group="val")
+        test_stats = eval_model(model, test_dataloader, criterion, wandb_group="test")
+        stats = {**train_stats, **val_stats, **test_stats}
         wandb.log(stats, step=epoch + 1)
 
         if epoch + 1 in n_epochs:
