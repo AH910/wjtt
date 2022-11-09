@@ -45,9 +45,9 @@ class WBDataset(Dataset):
             "test": 2,
         }
 
-        # Set transform
-        self.train_transform = get_transform_wb(train=True)
-        self.eval_transform = get_transform_wb(train=False)
+        # Set transforms (no data augmentation)
+        self.train_transform = get_transform_wb()
+        self.eval_transform = get_transform_wb()
 
     def __len__(self):
         return len(self.y_array)
@@ -86,12 +86,12 @@ class WBDataset(Dataset):
         ]
 
 
-def get_transform_wb(train=True):
+def get_transform_wb(augment=False):
     scale = 256.0 / 224.0
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
 
-    if not train:
+    if not augment:
         # Resizes the image to a slightly larger square then crops the center.
         transform = transforms.Compose(
             [
