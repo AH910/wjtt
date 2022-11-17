@@ -1,11 +1,27 @@
+import numpy as np
 import torch
+import torch.nn as nn
+import torchvision.models as models
 
 
-def hinge_loss(yhat, y):
-    """From JTT: The torch loss takes in three arguments so we need to split yhat
-    It also expects classes in {+1.0, -1.0} whereas by default we give them in {0, 1}
-    Furthermore, if y = 1 it expects the first input to be higher instead of the second,
-    so we need to swap yhat[:, 0] and yhat[:, 1]..."""
-    torch_loss = torch.nn.MarginRankingLoss(margin=1.0, reduction="none")
-    y = (y.float() * 2.0) - 1.0
-    return torch_loss(yhat[:, 1], yhat[:, 0], y)
+def set_seed(seed):
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+
+def get_model(dataset_attributes):
+    if dataset_attributes["dataset"] == "waterbird":
+        model = models.resnet50(pretrained=True)
+        d = model.fc.in_features
+        model.fc = nn.Linear(d, dataset_attributes["n_classes"])
+        return model
+
+    elif dataset_attributes["dataset"] == "celebA":
+        model = models.resnet50(pretrained=True)
+        d = model.fc.in_features
+        model.fc = nn.Linear(d, dataset_attributes["n_classes"])
+        return model
