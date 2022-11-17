@@ -1,31 +1,37 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision.models as models
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 
 import wandb
+from data import dataset_attributes
 from training import train_model
-from waterbird_prep import WBDataset
+from utils import get_model, set_seed
 
-n_classes = 2
+# Set seed
+set_seed(0)
+
+# Device configuration
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Hyperparameters first model
-n_epochs_1 = 60
-batch_size_1 = 64
+dataset = "celebA"
+dataset_attributes = dataset_attributes[dataset]
+n_epochs_1 = 1
+batch_size_1 = 24
 lr_1 = 1e-5
-weight_decay_1 = 1.0
+weight_decay_1 = 0.1
 
 # Hyperparameters second model
-n_epochs_2 = [100]
-batch_size_2 = 64
+n_epochs_2 = [30]
+batch_size_2 = 24
 lr_2 = 1e-5
-weight_decay_2 = 1.0
-upweight = 100
+weight_decay_2 = 0.1
+upweight = 50
 
 # Login to wandb
 wandb.init(
-    project="JTT (2nd model)",
+    project="JTT 2nd model (" + dataset + ")",
     config={
         "Number of epochs 1st model": n_epochs_1,
         "Batch size 1st model": batch_size_1,
@@ -38,18 +44,8 @@ wandb.init(
     },
 )
 
-# Set seed
-np.random.seed(0)
-torch.manual_seed(0)
-
-# Device configuration
-device = torch.device("cuda")
-
 # Load full dataset
-full_dataset = WBDataset(
-    data_dir="./data/waterbird_complete95_forest2water2",
-    metadata_csv_name="metadata.csv",
-)
+full_dataset = dataset_attributes["class"]()
 
 # Split dataset
 train_data, val_data, test_data = full_dataset.split()
@@ -57,7 +53,9 @@ train_data, val_data, test_data = full_dataset.split()
 # Load error set from first model
 error_set = list(
     np.genfromtxt(
-        "./results/jtt/waterbird/error_sets/"
+        "./results/jtt/"
+        + dataset_attributes["dataset"]
+        + "/error_sets/"
         + f"nepochs_{n_epochs_1}_"
         + f"lr_{lr_1}_"
         + f"batch_size_{batch_size_1}_"
@@ -80,14 +78,12 @@ loader_kwargs = {
     "num_workers": 4,
     "pin_memory": True,
 }
-train_dataloader = DataLoader(train_data, **loader_kwargs)
+train_dataloader = DataLoader(train_data, shuffle=True, **loader_kwargs)
 val_dataloader = DataLoader(val_data, **loader_kwargs)
 test_dataloader = DataLoader(test_data, **loader_kwargs)
 
 # Initialize model
-model = models.resnet50(pretrained=True)
-d = model.fc.in_features
-model.fc = nn.Linear(d, n_classes)
+model = get_model(dataset_attributes)
 model = model.to(device)
 
 # Loss and optimizer
@@ -110,4 +106,5 @@ train_model(
     lr_2,
     batch_size_2,
     weight_decay_2,
+    dataset_attributes,
 )
