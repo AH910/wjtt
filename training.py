@@ -4,18 +4,28 @@ import torch
 
 import wandb
 
-device = torch.device("cuda")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def eval_model(model, dataloader, criterion, wandb_group):
+def eval_model(model, dataloader, criterion, wandb_group, dataset_attributes):
     """
     Evaluates the model. Returns dictionary with group accuracies, worst group accuracy,
     average (over batches) accuracy and total loss of the samples in the dataloader.
     """
     total_loss = 0.0
     total_correct_pred = 0.0
-    g_correct_pred = np.zeros(4)
-    g_total = np.zeros(4)
+    n_groups = dataset_attributes["n_groups"]
+    g_correct_pred = np.zeros(n_groups)
+    g_total = np.zeros(n_groups)
+
+    groups = []
+    for k in range(n_groups):
+        groups.append(dataset_attributes[f"group{k}"])
+
+    if wandb_group == "val":
+        print("VALIDATION")
+    elif wandb_group == "test":
+        print("TESTING")
 
     for batch_idx, batch in enumerate(dataloader):
 
@@ -43,24 +53,29 @@ def eval_model(model, dataloader, criterion, wandb_group):
             g_total[g[k]] += 1
             if y_true[k] == y_pred[k]:
                 g_correct_pred[g[k]] += 1
-
-    stats = {
-        wandb_group + "/" + "Group 0 acc. (LB on land)": g_correct_pred[0] / g_total[0],
+    stats1 = {
         wandb_group
         + "/"
-        + "Group 1 acc. (LB on water)": g_correct_pred[1] / g_total[1],
-        wandb_group + "/" + "Group 2 acc. (WB on land)": g_correct_pred[2] / g_total[2],
+        + f"Group {k} acc."
+        + "("
+        + groups[k]
+        + ")": g_correct_pred[k] / g_total[k]
+        for k in range(n_groups)
+    }
+    stats2 = {
         wandb_group
         + "/"
-        + "Group 3 acc. (WB on water)": g_correct_pred[3] / g_total[3],
-        wandb_group
-        + "/"
-        + "Worst group acc.": min(g_correct_pred[i] / g_total[i] for i in [0, 1, 2, 3]),
+        + "Worst group acc.": min(
+            g_correct_pred[i] / g_total[i] for i in range(n_groups)
+        ),
         wandb_group + "/" + "accuracy": total_correct_pred / len(dataloader.dataset),
         wandb_group + "/" + "loss": total_loss,
     }
-
-    return stats
+    print(
+        "Worst group accuracy: ",
+        min(g_correct_pred[i] / g_total[i] for i in range(n_groups)),
+    )
+    return {**stats1, **stats2}
 
 
 def get_error_set(model, dataloader):
@@ -110,6 +125,7 @@ def train_model(
     lr,
     batch_size,
     weight_decay,
+    dataset_attributes,
 ):
     """
     Trains model on the data in according to train_dataloader, criterion and optimizer
@@ -121,6 +137,7 @@ def train_model(
         n_epochs = [n_epochs]
 
     for epoch in range(max(n_epochs)):
+        print(f"\n EPOCH {epoch+1}:\n")
         train_loss = 0.0
         train_correct_pred = 0.0
 
@@ -154,14 +171,25 @@ def train_model(
             "train/loss": train_loss / len(train_dataloader),
             "train/accuracy": train_correct_pred / len(train_dataloader.dataset),
         }
-        val_stats = eval_model(model, val_dataloader, criterion, wandb_group="val")
-        test_stats = eval_model(model, test_dataloader, criterion, wandb_group="test")
+        print("TRAINING")
+        print(
+            f"training loss: {train_loss / len(train_dataloader)}, ",
+            f"training accuracy: {train_correct_pred / len(train_dataloader.dataset)}",
+        )
+        val_stats = eval_model(
+            model, val_dataloader, criterion, "val", dataset_attributes
+        )
+        test_stats = eval_model(
+            model, test_dataloader, criterion, "test", dataset_attributes
+        )
         stats = {**train_stats, **val_stats, **test_stats}
         wandb.log(stats, step=epoch + 1)
 
         if epoch + 1 in n_epochs:
             pd.DataFrame(get_error_set(model, train_dataloader)).to_csv(
-                "./results/jtt/waterbird/error_sets/"
+                "./results/jtt/"
+                + dataset_attributes["dataset"]
+                + "/error_sets/"
                 + f"nepochs_{epoch+1}_"
                 + f"lr_{lr}_"
                 + f"batch_size_{batch_size}_"
