@@ -10,7 +10,12 @@ class WBDataset(Dataset):
 
     # Custom dataset class for waterbird data
 
-    def __init__(self, data_dir, metadata_csv_name="metadata.csv"):
+    def __init__(
+        self,
+        data_dir="./data/waterbird_complete95_forest2water2",
+        metadata_csv_name="metadata.csv",
+    ):
+
         self.data_dir = data_dir
 
         if not os.path.exists(self.data_dir):
@@ -24,17 +29,13 @@ class WBDataset(Dataset):
         # Labels:   y == 0 --> Landbird
         #           y == 1 --> Waterbird
         self.y_array = self.metadata_df["y"].values
-        self.n_classes = 2
 
         # Groups:   0 --> LB on land
         #           1 --> LB on water
         #           2 --> WB on land
         #           3 --> WB on water
-        self.n_groups = 4
         self.confounder_array = self.metadata_df["place"].values
-        self.group_array = (
-            self.y_array * (self.n_groups / 2) + self.confounder_array
-        ).astype("int")
+        self.group_array = (self.y_array * 2 + self.confounder_array).astype("int")
 
         # Extract filenames and splits
         self.filename_array = self.metadata_df["img_filename"].values
