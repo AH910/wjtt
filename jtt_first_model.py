@@ -1,22 +1,21 @@
-import numpy as np
 import torch
 import torch.nn as nn
-import torchvision.models as models
 from torch.utils.data import DataLoader
 
 import wandb
+from data import dataset_attributes
 from training import train_model
-from waterbird_prep import WBDataset
+from utils import get_model, set_seed
 
 # Set seed
-np.random.seed(0)
-torch.manual_seed(0)
+set_seed(0)
 
 # Device configuration
-device = torch.device("cuda")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Hyperparameters
-n_classes = 2
+dataset = "waterbird"
+dataset_attributes = dataset_attributes[dataset]
 n_epochs = [30, 50, 100, 150]
 batch_size = 64
 lr = 1e-5
@@ -24,7 +23,7 @@ weight_decay = 1.0
 
 # Login to wandb
 wandb.init(
-    project="test_run",
+    project="JTT 1st model (" + dataset + ")",
     config={
         "Number of epochs": max(n_epochs),
         "Batch size": batch_size,
@@ -33,17 +32,8 @@ wandb.init(
     },
 )
 
-# Initialize model
-model = models.resnet50(pretrained=True)
-d = model.fc.in_features
-model.fc = nn.Linear(d, n_classes)
-model = model.to(device)
-
-# Loading full waterbird dataset
-full_dataset = WBDataset(
-    data_dir="./data/waterbird_complete95_forest2water2",
-    metadata_csv_name="metadata.csv",
-)
+# Loading full dataset
+full_dataset = dataset_attributes["class"]()
 
 # Splitting the full dataset into train, val, and test data according to the split
 # column in metadata.csv
@@ -59,6 +49,9 @@ train_dataloader = DataLoader(train_data, shuffle=True, **loader_kwargs)
 val_dataloader = DataLoader(val_data, **loader_kwargs)
 test_dataloader = DataLoader(test_data, **loader_kwargs)
 
+# Initialize model
+model = get_model(dataset_attributes)
+model = model.to(device)
 
 # Loss and optimizer
 criterion = nn.CrossEntropyLoss(reduction="none")
@@ -81,4 +74,5 @@ train_model(
     lr,
     batch_size,
     weight_decay,
+    dataset_attributes,
 )
