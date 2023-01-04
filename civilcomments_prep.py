@@ -14,7 +14,7 @@ class CivilCommentsDataset(Dataset):
         self,
         data_dir="./data/CivilComments",
         data_filename="all_data_with_identities.csv",
-        batch_size=None,
+        batch_size=16,
     ):
 
         self.data_dir = data_dir
