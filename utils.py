@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from transformers import BertForSequenceClassification
 
 
 def set_seed(seed):
@@ -15,6 +14,13 @@ def set_seed(seed):
 
 
 def get_model(dataset_attributes):
+    # Import modules
+    if dataset_attributes["dataset"] == "CivilComments":
+        from transformers import BertForSequenceClassification
+    elif dataset_attributes["dataset"] == "MultiNLI":
+        from pytorch_transformers import (BertConfig,
+                                          BertForSequenceClassification)
+
     if dataset_attributes["dataset"] == "waterbird":
         model = models.resnet50(pretrained=True)
         d = model.fc.in_features
@@ -30,6 +36,18 @@ def get_model(dataset_attributes):
     elif dataset_attributes["dataset"] == "CivilComments":
         model = BertForSequenceClassification.from_pretrained(
             "bert-base-uncased", num_labels=2
+        )
+        return model
+
+    elif dataset_attributes["dataset"] == "MultiNLI":
+        config_class = BertConfig
+        model_class = BertForSequenceClassification
+
+        config = config_class.from_pretrained(
+            "bert-base-uncased", num_labels=3, finetuning_task="mnli"
+        )
+        model = model_class.from_pretrained(
+            "bert-base-uncased", from_tf=False, config=config
         )
         return model
 
@@ -64,7 +82,7 @@ def get_weights(probs, alpha, func):
 
         for k in range(len(probs)):
             w = np.sqrt(2 * alpha) * ((loss[k] - avg_loss) / std_loss)
-            weights.append(int(max(1, 100 * (1 + w))))
+            weights.append(int(max(1, 5 * (1 + w))))
 
     elif func == "CVar":
         alpha, CVar_beta = alpha[0], alpha[1] / 100
@@ -72,7 +90,7 @@ def get_weights(probs, alpha, func):
         M = int(CVar_beta * len(probs))
         for k in range(len(probs)):
             if k in sorted_indices[: M + 1]:
-                weights.append(alpha)
+                weights.append(int(alpha))
             else:
                 weights.append(1)
 
@@ -92,3 +110,21 @@ def get_weights(probs, alpha, func):
         print(f"Function {func} not implemented.")
 
     return weights
+
+
+# Returns index of the max/min value of arr (if the max/min is reached
+# multiple times, we take the last occurence).
+def argmax(arr):
+    ind, max_num = 0, arr[0]
+    for k in range(1, len(arr)):
+        if arr[k] >= max_num:
+            ind, max_num = k, arr[k]
+    return ind
+
+
+def argmin(arr):
+    ind, min_num = 0, arr[0]
+    for k in range(1, len(arr)):
+        if arr[k] <= min_num:
+            ind, min_num = k, arr[k]
+    return ind
