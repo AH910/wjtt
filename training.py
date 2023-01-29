@@ -124,7 +124,7 @@ def get_error_set(model, dataloader, dataset_attrs):
     # Initialize error set, first array = indices, second array = probabilities
     error_set = [[], []]
     # Initialize softmax function to get probabilities from cross-entropy loss
-    s = Softmax(dim=0)
+    s = Softmax(dim=1)
 
     # Iterate through dataloader
     for batch_idx, batch in enumerate(dataloader):
@@ -225,11 +225,11 @@ def train_model(
     if dataset_attrs["dataset"] == "waterbird":
         logging_x_times = 0
     elif dataset_attrs["dataset"] == "celebA":
-        logging_x_times = 4
+        logging_x_times = 10
     elif dataset_attrs["dataset"] == "CivilComments":
-        logging_x_times = 4
+        logging_x_times = 10
     elif dataset_attrs["dataset"] == "MultiNLI":
-        logging_x_times = 4
+        logging_x_times = 10
 
     # Batch indices at which to log
     log_at_batch_id = [
