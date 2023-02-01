@@ -52,7 +52,7 @@ def eval_model(model, dataloader, criterion, wandb_group, dataset_attrs):
         with torch.no_grad():
 
             # Get outputs for CivilComments dataset
-            if dataset_attrs["dataset"] == "CivilComments":
+            if dataset_attrs["dataset"] in ["CivilComments", "MultiNLI"]:
                 input_ids = x[:, :, 0]
                 input_masks = x[:, :, 1]
                 segment_ids = x[:, :, 2]
@@ -143,7 +143,7 @@ def get_error_set(model, dataloader, dataset_attrs):
         with torch.no_grad():
 
             # Get outputs for CivilComments dataset
-            if dataset_attrs["dataset"] == "CivilComments":
+            if dataset_attrs["dataset"] in ["CivilComments", "MultiNLI"]:
                 input_ids = x[:, :, 0]
                 input_masks = x[:, :, 1]
                 segment_ids = x[:, :, 2]
@@ -225,11 +225,11 @@ def train_model(
     if dataset_attrs["dataset"] == "waterbird":
         logging_x_times = 0
     elif dataset_attrs["dataset"] == "celebA":
-        logging_x_times = 10
+        logging_x_times = 4 if id_model else 10
     elif dataset_attrs["dataset"] == "CivilComments":
-        logging_x_times = 10
+        logging_x_times = 4 if id_model else 10
     elif dataset_attrs["dataset"] == "MultiNLI":
-        logging_x_times = 10
+        logging_x_times = 4 if id_model else 10
 
     # Batch indices at which to log
     log_at_batch_id = [
@@ -259,7 +259,7 @@ def train_model(
 
             # Forward pass
             # Get outputs for CivilComments
-            if dataset_attrs["dataset"] == "CivilComments":
+            if dataset_attrs["dataset"] in ["CivilComments", "MultiNLI"]:
                 input_ids = x[:, :, 0]
                 input_masks = x[:, :, 1]
                 segment_ids = x[:, :, 2]
@@ -315,7 +315,6 @@ def train_model(
                         train_correct_pred / (batch_size * (batch_idx + 1))
                     ),
                 )
-                print()
 
                 # Testing and validation
                 val_stats = eval_model(
@@ -325,6 +324,7 @@ def train_model(
                     model, test_dataloader, criterion, "test", dataset_attrs
                 )
                 stats = {**train_stats, **val_stats, **test_stats}
+                print()
 
                 # Log to Weights&Biases if UseWandb==True
                 if UseWandb:
@@ -371,7 +371,6 @@ def train_model(
             "training accuracy: ",
             "{:.4f}".format(train_correct_pred / len(train_dataloader.dataset)),
         )
-        print()
 
         # Validation and testing
         val_stats = eval_model(model, val_dataloader, criterion, "val", dataset_attrs)
@@ -379,6 +378,7 @@ def train_model(
             model, test_dataloader, criterion, "test", dataset_attrs
         )
         stats = {**train_stats, **val_stats, **test_stats}
+        print()
 
         # Log to Weights&Biases if UseWandb==True
         if UseWandb:
