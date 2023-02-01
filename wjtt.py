@@ -81,12 +81,12 @@ def run_exp(args):
         # Load error set from first model
         probs = list(np.genfromtxt(error_set, delimiter=","))
         indices = [temp_train_data[k][3] for k in range(len(temp_train_data))]
-
+        breakpoint()
         # get weights
         if func == "CVar":
             alpha = [alpha, CVar_beta]
         weights = get_weights(probs, alpha, func)
-
+        breakpoint()
         # get train indices of new training set
         train_indices = []
         for k in range(len(indices)):
@@ -94,7 +94,7 @@ def run_exp(args):
 
         # training data
         train_data = Subset(full_dataset, list(train_indices))
-
+    breakpoint()
     # Setting train, validation and test dataloader
     loader_kwargs = {
         "batch_size": batch_size,
