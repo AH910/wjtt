@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
+from pytorch_transformers import AdamW, WarmupLinearSchedule
 from torch.nn import Softmax
 
 import wandb
@@ -61,9 +62,7 @@ def eval_model(model, dataloader, criterion, wandb_group, dataset_attrs):
                     attention_mask=input_masks,
                     token_type_ids=segment_ids,
                     labels=y,
-                )[
-                    1
-                ]  # [1] returns logits
+                )[1]
 
             # Get outputs for all the other datasets
             else:
@@ -123,6 +122,8 @@ def get_error_set(model, dataloader, dataset_attrs):
     """
     # Initialize error set, first array = indices, second array = probabilities
     error_set = [[], []]
+    misclassified = []
+
     # Initialize softmax function to get probabilities from cross-entropy loss
     s = Softmax(dim=1)
 
@@ -152,15 +153,14 @@ def get_error_set(model, dataloader, dataset_attrs):
                     attention_mask=input_masks,
                     token_type_ids=segment_ids,
                     labels=y,
-                )[
-                    1
-                ]  # [1] returns logits
+                )[1]
 
             # Get outputs for all the other datasets
             else:
                 outputs = model(x)
 
         # Get true label and the probability p given by model for true label
+        y_pred = np.argmax(outputs.detach().cpu().numpy(), axis=1)
         y_true = y.cpu().numpy()
         p = s(outputs).detach().cpu().numpy()[np.array(range(len(y_true))), y_true]
 
@@ -168,6 +168,10 @@ def get_error_set(model, dataloader, dataset_attrs):
         for k in range(len(data_idx)):
             error_set[0].append(data_idx[k].cpu())
             error_set[1].append(p[k])
+            if y_pred[k] == y_true[k]:
+                misclassified.append(0)
+            else:
+                misclassified.append(1)
 
     # Sort array of probabilities acc. to indices
     error_set = np.array(error_set)  # Convert to np.array
@@ -175,7 +179,8 @@ def get_error_set(model, dataloader, dataset_attrs):
     error_set = error_set[:, ind]  # Sort array
 
     # Return probabilities
-    return error_set[1]
+    n_c = dataset_attrs["n_classes"]
+    return error_set[1] if n_c == 2 else [error_set[1], misclassified]
 
 
 def train_model(
@@ -201,6 +206,11 @@ def train_model(
     # Step for wandb, so it starts at 1 instead of 0
     step = 1
 
+    # Set boolean "second_bert_model" (different optimizer in that case)
+    second_bert_model = (not id_model) and (
+        dataset_attrs["dataset"] in ["CivilComments", "MultiNLI"]
+    )
+
     # Initialize dictionary with arrays to record some stats during the training
     # which will be used for model selection (early stopping)
     stat_arrays = {
@@ -214,12 +224,39 @@ def train_model(
     }
 
     # Set optimizer
-    optimizer = torch.optim.SGD(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=lr,
-        momentum=0.9,
-        weight_decay=weight_decay,
-    )
+    # Optimizer for 2nd model of CivilComments or MultiNLI
+    if second_bert_model:
+        no_decay = ["bias", "LayerNorm.weight"]
+        optimizer_grouped_parameters = [
+            {
+                "params": [
+                    p
+                    for n, p in model.named_parameters()
+                    if not any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": weight_decay,
+            },
+            {
+                "params": [
+                    p
+                    for n, p in model.named_parameters()
+                    if any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.0,
+            },
+        ]
+        optimizer = AdamW(optimizer_grouped_parameters, lr=lr, eps=1e-8)
+        t_total = len(train_dataloader) * max(n_epochs)
+        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=0, t_total=t_total)
+
+    # Optimizer for id. models and 2nd models of waterbird and celebA
+    else:
+        optimizer = torch.optim.SGD(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=lr,
+            momentum=0.9,
+            weight_decay=weight_decay,
+        )
 
     # How often to log and save error set during epoch:
     if dataset_attrs["dataset"] == "waterbird":
@@ -243,11 +280,13 @@ def train_model(
         train_loss = 0.0
         train_correct_pred = 0.0
 
-        # Put model in training mode
-        model.train()
-
         # Iterate through dataloader
         for batch_idx, batch in enumerate(train_dataloader):
+
+            # Put model in training mode
+            model.train()
+            if second_bert_model:
+                model.zero_grad()
 
             # Empty cache
             if torch.cuda.is_available():
@@ -258,7 +297,7 @@ def train_model(
             y = batch[1]  # labels
 
             # Forward pass
-            # Get outputs for CivilComments
+            # Get outputs for CivilComments, MultiNLI
             if dataset_attrs["dataset"] in ["CivilComments", "MultiNLI"]:
                 input_ids = x[:, :, 0]
                 input_masks = x[:, :, 1]
@@ -268,9 +307,7 @@ def train_model(
                     attention_mask=input_masks,
                     token_type_ids=segment_ids,
                     labels=y,
-                )[
-                    1
-                ]  # [1] returns logits
+                )[1]
 
             # Get outputs for all the other datasets
             else:
@@ -280,9 +317,19 @@ def train_model(
             loss = criterion(outputs, y)
 
             # Backward pass
-            optimizer.zero_grad()
-            loss.mean().backward()
-            optimizer.step()
+            # Backward pass for second model of CivilComments and MultiNLI
+            if second_bert_model:
+                loss.mean().backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                optimizer.step()
+                scheduler.step()
+                model.zero_grad()
+
+            # Backward pass for id. models and second model of waterbirds and celebA
+            else:
+                optimizer.zero_grad()
+                loss.mean().backward()
+                optimizer.step()
 
             # Add loss of this batch to total and add correctly predicted
             # samples to total
