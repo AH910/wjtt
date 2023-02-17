@@ -12,7 +12,7 @@ class CelebADataset(Dataset):
 
     def __init__(
         self,
-        root_dir="./data",
+        root_dir="/cluster/scratch/andrih/",
         metadata_csv_name="list_attr_celeba.csv",
         split_csv_name="list_eval_partition.csv",
     ):
