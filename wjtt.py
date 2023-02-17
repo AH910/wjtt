@@ -19,8 +19,10 @@ def run_exp(args):
     # Device configuration
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Set hyperparameters
+    # Set dataset
     dataset = args["dataset"]
+
+    # Set hyperparameters
     n_epochs = args["num_epochs"]
     n_epochs = [int(x) for x in n_epochs.strip("][").split(",")]
     batch_size = args["batch_size"]
@@ -30,6 +32,7 @@ def run_exp(args):
     # Set variables for weighting (second model)
     func = args["weight_func"]
     alpha = args["alpha"]
+    rho = args["rho"]
     CVar_beta = args["CVar_beta"]
 
     # Set other variables
@@ -83,9 +86,16 @@ def run_exp(args):
         indices = [temp_train_data[k][3] for k in range(len(temp_train_data))]
 
         # get weights
-        if func == "CVar":
-            alpha = [alpha, CVar_beta]
-        weights = get_weights(probs, alpha, func)
+        # For n_classes > 2 and JTT (MultiNLI)
+        if dataset_attrs["n_classes"] > 2 and func == "JTT":
+            weights = [int(alpha + 1) if m == 1 else 1 for m in probs[1]]
+        # For n_classes == 2 or not JTT
+        else:
+            if dataset_attrs["n_classes"] > 2:
+                probs = probs[0]
+            if func == "CVar":
+                alpha = [alpha, CVar_beta]
+            weights = get_weights(probs, alpha, rho, func)
 
         # get train indices of new training set
         train_indices = []
@@ -150,7 +160,8 @@ parser.add_argument("--weight_decay")
 parser.add_argument(
     "--weight_func", choices=["JTT", "DRO2", "CVar", "w1", "w2"], default="JTT"
 )
-parser.add_argument("--alpha", type=float)
+parser.add_argument("--alpha", type=float, default=100.0)
+parser.add_argument("--rho", type=float, default=1.0)
 parser.add_argument("--CVar_beta", type=float)
 
 # Other arguments
