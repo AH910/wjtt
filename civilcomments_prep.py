@@ -32,7 +32,7 @@ class CivilCommentsDataset(Dataset):
 
         if not os.path.exists(self.data_dir):
             raise ValueError(
-                f"{self.data_dir} does not exist yet. Please generate the dataset."
+                f"{self.data_dir} does not exist. Please generate the dataset first."
             )
 
         # Read in metadata
