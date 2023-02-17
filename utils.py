@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.models as models
+from transformers import BertForSequenceClassification
 
 
 def set_seed(seed):
@@ -52,7 +53,7 @@ def get_model(dataset_attributes):
         return model
 
 
-def get_weights(probs, alpha, func):
+def get_weights(probs, alpha, rho, func):
     weights = []
 
     if func == "JTT":
@@ -64,25 +65,19 @@ def get_weights(probs, alpha, func):
 
             weights.append(int(w))
 
-    elif func == "DRO1":
-        losses = [-np.log(p) for p in probs]
-        sum_exp = (1 / len(losses)) * (sum(np.exp(-loss / alpha) for loss in losses))
-
-        for k in range(len(probs)):
-            w = np.exp(-losses[k] / alpha) / sum_exp
-            weights.append(int(max(1, 100 * w)))
-            breakpoint()
-
     elif func == "DRO2":
-        loss = [-np.log(p) for p in probs]
+        # If probs[k]==0, set it to 0.00001 to avoid log(0)
+        loss = [-np.log(p) if p != 0 else -np.log(0.00001) for p in probs]
         avg_loss = sum(loss) / len(loss)
         std_loss = np.sqrt(
             sum((loss[k] - avg_loss) ** 2 for k in range(len(loss))) / len(loss)
         )
 
         for k in range(len(probs)):
-            w = np.sqrt(2 * alpha) * ((loss[k] - avg_loss) / std_loss)
-            weights.append(int(max(1, 5 * (1 + w))))
+
+            w = np.sqrt(2 * rho) * ((loss[k] - avg_loss) / std_loss)
+            w = min(400, alpha * (1 + w))  # Upper bound for weights = 400
+            weights.append(int(max(1, w)))  # Lower bound = 1
 
     elif func == "CVar":
         alpha, CVar_beta = alpha[0], alpha[1] / 100
