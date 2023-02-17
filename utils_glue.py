@@ -436,8 +436,7 @@ def convert_examples_to_features(
     `cls_token_at_end` define the location of the CLS token:
         - False (Default, BERT/XLM pattern): [CLS] + A + [SEP] + B + [SEP]
         - True (XLNet/GPT pattern): A + [SEP] + B + [SEP] + [CLS]
-    `cls_token_segment_id` define the segment id associated to the CLS token
-    (0 for BERT, 2 for XLNet)
+    `cls_token_segment_id` define the segment id associated to the CLS token (0 for BERT, 2 for XLNet)
     """
 
     label_map = {label: i for i, label in enumerate(label_list)}
