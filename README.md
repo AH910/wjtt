@@ -1,7 +1,4 @@
-# wjtt
-Implementation of Weighted Just Train Twice (MSc Thesis).
-
-## Abstract
+# Weighted Just Train Twice (MSc Thesis)
 In some cases, standard machine learning models do well on average, but fail on certain groups of the data. This can happen when the data consists of several heterogeneous groups. For this situation, we propose the method Weighted Just Train Twice, a generalization of JTT. Our implementation is based on the code of [Just Train Twice](https://arxiv.org/pdf/2107.09044.pdf) and [group DRO](https://arxiv.org/abs/1911.08731).
 
 ## Packages
