@@ -12,10 +12,10 @@ The packages needed for our code can be found in `requirements.txt`. They can be
 - **CivilComments:** The CivilComments dataset can be downloaded [here](https://worksheets.codalab.org/rest/bundles/0x8cd3de0634154aeaad2ee6eb96723c6e/contents/blob/). Our code expects the dataset at `wjtt/data/CivilComments/all_data_with_identities.csv`.
 
 - **MultiNLI:** The MultiNLI dataset can be downloaded [here](https://github.com/kohpangwei/group_DRO#multinli-with-annotated-negations). In the directory `wjtt/data/multiNLI/` our code expects
-    - metadata_preset.csv
-    - cached_dev_bert-base-uncased_128_mnli
-    - cached_dev_bert-base-uncased_128_mnli-mm
-    - cached_train_bert-base-uncased_128_mnli
+    - `metadata_preset.csv`
+    - `cached_dev_bert-base-uncased_128_mnli`
+    - `cached_dev_bert-base-uncased_128_mnli-mm`
+    - `cached_train_bert-base-uncased_128_mnli`
 
 
 ## Run the method
